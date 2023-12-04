@@ -10,6 +10,23 @@
 #include <type_traits>
 #include <vector>
 
+/**
+ * @file utils.hpp
+ * @brief Contains the utility functions and operators for various purposes.
+ */
+
+/**
+ * @brief Get a slice of a std::list.
+ *
+ * This function returns a vector containing pointers to elements in the
+ * specified range [start, end) of a std::list.
+ *
+ * @tparam T The type of elements in the list.
+ * @param l the list from which to extract the slice.
+ * @param start The starting index of the slice.
+ * @param end The ending index (exclusive) of the slice.
+ * @return A vector containing the pointers to elements in the specified range.
+ */
 template <typename T>
 std::vector<T *> get_slice(std::list<T> &l, size_t start, size_t end) {
   std::vector<T *> result;
@@ -20,6 +37,17 @@ std::vector<T *> get_slice(std::list<T> &l, size_t start, size_t end) {
   return result;
 }
 
+/**
+ * @brief Calculate the relative error between two values.
+ *
+ * This function calculates the relative error between two values, defined as
+ * the absolute difference divided by the actual value.
+ *
+ * @tparam T The type of values being compared.
+ * @param estimated The estimated value.
+ * @param actual The actual value.
+ * @return The relative error between the estimated and actual values.
+ */
 template <typename T>
 auto error(const T &estimated, const T &actual)
     -> decltype(estimated - actual) {
@@ -27,6 +55,20 @@ auto error(const T &estimated, const T &actual)
   return std::abs(diff / actual);
 }
 
+/**
+ * @brief Calculate the maximum relative error between corresponding elements of
+ * two ranges.
+ *
+ * This function calculates the maximum relative error between corresponding
+ * elements of two ranges. It assumes that both ranges have the same type of
+ * elements.
+ *
+ * @tparam Range the type of the ranges.
+ * @param estimated The estimated range.
+ * @param actual The actual range.
+ * @return The maximum relative error between corresponding elements of the
+ * ranges.
+ */
 template <std::ranges::range Range>
   requires std::same_as<std::ranges::range_value_t<Range>,
                         std::ranges::range_value_t<Range>>
@@ -45,6 +87,16 @@ std::ranges::range_value_t<Range> error(const Range &estimated,
   return max_error;
 }
 
+/**
+ * @brief Compare two ranges for equality
+ *
+ * This operator checks if two ranges are equal by comparing their elements.
+ *
+ * @tparam Range The type of the ranges.
+ * @param v1 The first range.
+ * @param v2 The second range.
+ * @return True if the ranges are equal, false otherwise.
+ */
 template <std::ranges::range Range>
   requires std::same_as<std::ranges::range_value_t<Range>,
                         std::ranges::range_value_t<Range>>
