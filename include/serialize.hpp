@@ -34,12 +34,14 @@ using std::is_array_v;
 /**
  * @brief Struct representing a universal type for serialization purposes.
  *
- * The `universal_type` struct is used for serialization. It represents a universal
- * type that can be converted to any desired type during serialization.
+ * The `universal_type` struct is used for serialization. It represents a
+ * universal type that can be converted to any desired type during
+ * serialization.
  *
  * @tparam T The type to be serialized.
  * @tparam Lambda The lambda function to perform the serialization.
- * @tparam I The index representing the current level of recursion during serialization.
+ * @tparam I The index representing the current level of recursion during
+ * serialization.
  * @tparam U The types accumulated during recursion for serialization.
  */
 template <typename T, typename Lambda, std::size_t I, typename... U>
@@ -54,8 +56,8 @@ struct universal_type {
   /**
    * @brief Conversion operator for the universal_type.
    *
-   * This operator performs the serialization by constructing a nested structure of
-   * universal_type with accumulated types and invoking the lambda function.
+   * This operator performs the serialization by constructing a nested structure
+   * of universal_type with accumulated types and invoking the lambda function.
    *
    * @tparam V The type to convert to during serialization.
    * @return An instance of V.
@@ -130,7 +132,8 @@ template <typename T, typename Lambda> void reflect_struct(Lambda &&lambda) {
 }
 
 /**
- * @brief Reflects on the structure of a class and returns a tuple of serialized values.
+ * @brief Reflects on the structure of a class and returns a tuple of serialized
+ * values.
  *
  * This function reflects on the members of a class, serializes each member, and
  * returns a tuple of serialized values.
