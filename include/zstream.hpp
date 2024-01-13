@@ -38,28 +38,37 @@ public:
     if (is_compressing)
       deflateEnd(&z_stream_def);
     else
-      inflateEnd(&z_stream_inf);
+      inflateEnd(&z_stream_def);
   }
 
 protected:
   int_type underflow() override {
     if (!is_compressing) {
+      if (source_stream->eof() || source_stream->fail()) {
+        std::cerr << "Source stream is not in a good state." << std::endl;
+        return traits_type::eof();
+      }
+
       source_stream->read(buffer.data(), buffer.size());
       std::streamsize num = source_stream->gcount();
-      if (num <= 0)
+      if (num <= 0) {
+        std::cerr << "No data read from source stream." << std::endl;
         return traits_type::eof();
+      }
 
-      z_stream_inf.avail_in = num;
-      z_stream_inf.next_in = reinterpret_cast<Bytef *>(buffer.data());
-      z_stream_inf.avail_out = buffer.size();
-      z_stream_inf.next_out = reinterpret_cast<Bytef *>(buffer.data());
+      z_stream_def.avail_in = num;
+      z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
+      z_stream_def.avail_out = buffer.size();
+      z_stream_def.next_out = reinterpret_cast<Bytef *>(buffer.data());
 
-      int ret = inflate(&z_stream_inf, Z_NO_FLUSH);
-      if (ret != Z_OK && ret != Z_STREAM_END)
+      int ret = inflate(&z_stream_def, Z_NO_FLUSH);
+      if (ret != Z_OK && ret != Z_STREAM_END) {
+        std::cerr << "Decompression error: " << ret << std::endl;
         return traits_type::eof();
+      }
 
       setg(buffer.data(), buffer.data(),
-           buffer.data() + (buffer.size() - z_stream_inf.avail_out));
+           buffer.data() + (buffer.size() - z_stream_def.avail_out));
       return traits_type::to_int_type(*gptr());
     }
 
@@ -95,7 +104,11 @@ private:
     do {
       z_stream_def.avail_out = buffer.size();
       z_stream_def.next_out = reinterpret_cast<Bytef *>(base);
-      deflate(&z_stream_def, flush);
+      int ret = deflate(&z_stream_def, flush);
+      if (ret == Z_STREAM_ERROR) {
+        std::cerr << "ZSTREAM ERROR: " << ret << std::endl;
+      }
+
       std::size_t have = buffer.size() - z_stream_def.avail_out;
       if (have > 0)
         sink_stream->write(base, have);
@@ -108,33 +121,23 @@ private:
   std::istream *source_stream;
   bool is_compressing;
   std::vector<char> buffer;
-  union {
-    z_stream z_stream_def; // compression
-    z_stream z_stream_inf; // decompression
-  };
+  z_stream z_stream_def;
 };
 
 class zstream : public std::iostream {
 public:
-  zstream(std::ostream *sink) : buffer(sink), stream(&buffer) {}
-
-  zstream(std::istream *source) : buffer(source), stream(&buffer) {}
-
-  template <typename T> zstream &operator<<(const T &data) {
-    stream << data;
-    return *this;
+  zstream(std::ostream *sink) : std::iostream(&buffer), buffer(sink) {
+    init(&buffer);
   }
 
-  template <typename T> zstream &operator>>(T &data) {
-    stream >> data;
-    return *this;
+  zstream(std::istream *source) : std::iostream(&buffer), buffer(source) {
+    init(&buffer);
   }
 
-  void flush() { stream.flush(); }
+  void flush() { buffer.pubsync(); }
 
 private:
   zstream_buffer buffer;
-  std::iostream stream;
 };
 
 #endif
