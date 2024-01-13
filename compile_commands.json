@@ -1,0 +1,23 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-std=c++20",
+      "-march=native",
+      "-O3",
+      "-g",
+      "-Wall",
+      "-Wextra",
+      "-Wno-missing-field-initializers",
+      "-pedantic",
+      "-I./include",
+      "-c",
+      "-o",
+      "zstream-test",
+      "builds/test/zstream_test.cpp"
+    ],
+    "directory": "/home/dots/Documents/Projects/exstd",
+    "file": "/home/dots/Documents/Projects/exstd/builds/test/zstream_test.cpp",
+    "output": "/home/dots/Documents/Projects/exstd/zstream-test"
+  }
+]
