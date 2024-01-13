@@ -2,6 +2,7 @@
 #define EXSTD_ZSTREAM
 
 #include <cstddef>
+#include <cstring>
 #include <iostream>
 #include <istream>
 #include <ostream>
@@ -47,9 +48,10 @@ protected:
 
     z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
 
-    std::vector<char> out_buffer(buffer.size());
-    z_stream_def.avail_out = out_buffer.size();
-    z_stream_def.next_out = reinterpret_cast<Bytef *>(out_buffer.data());
+    std::size_t decompression_start = buffer.size() / 2;
+    z_stream_def.avail_out = decompression_start;
+    z_stream_def.next_out =
+        reinterpret_cast<Bytef *>(buffer.data() + decompression_start);
 
     int ret = inflate(&z_stream_def, Z_NO_FLUSH);
     if (ret != Z_OK && ret != Z_STREAM_END) {
@@ -57,8 +59,10 @@ protected:
       return traits_type::eof();
     }
 
-    setg(out_buffer.data(), out_buffer.data(),
-         out_buffer.data() + out_buffer.size() - z_stream_def.avail_out);
+    setg(buffer.data() + decompression_start,
+         buffer.data() + decompression_start,
+         buffer.data() + decompression_start +
+             (decompression_start - z_stream_def.avail_out));
     return traits_type::to_int_type(*gptr());
   }
 
@@ -78,6 +82,7 @@ protected:
 
 private:
   void init_z_stream() {
+    memset(&z_stream_def, 0, sizeof(z_stream));
     z_stream_def.zalloc = Z_NULL;
     z_stream_def.zfree = Z_NULL;
     z_stream_def.opaque = Z_NULL;

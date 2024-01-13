@@ -3,7 +3,7 @@ INC = -I./include
 LIB = -L/lib -lz
 
 CFLAGS = -march=native -O3 -g -Wall -Wextra -Wno-missing-field-initializers -pedantic $(INC)
-CXXFLAGS = -std=c++20 $(CFLAGS)                                                
+CXXFLAGS = -std=c++20 -fsanitize=address $(CFLAGS)
 LDFLAGS = $(LIB) -O3
 
 all: docs open
