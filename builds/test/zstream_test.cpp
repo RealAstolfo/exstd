@@ -1,7 +1,7 @@
 #include "zstream.hpp"
-#include <bit>
-#include <fstream>
+
 #include <iostream>
+#include <sstream>
 
 int main(int argc, char **argv) {
   (void)argc;
@@ -10,17 +10,17 @@ int main(int argc, char **argv) {
   std::ostringstream com_data_stream;
   {
     zstream compressor(&com_data_stream);
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
-    compressor << "Hello World!";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
+    compressor << "Hello World!\n";
     compressor.flush();
   }
 

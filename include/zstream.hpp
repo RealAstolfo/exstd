@@ -4,9 +4,7 @@
 #include <cstddef>
 #include <iostream>
 #include <istream>
-#include <memory>
 #include <ostream>
-#include <sstream>
 #include <streambuf>
 #include <sys/types.h>
 #include <vector>
@@ -16,22 +14,14 @@
 
 class zstream_buffer : public std::streambuf {
 public:
-  zstream_buffer(std::ostream *sink, std::size_t buff_sz = 256)
+  explicit zstream_buffer(std::ostream *sink, std::size_t buff_sz = 256)
       : sink_stream(sink), is_compressing(true), buffer(buff_sz) {
-    z_stream_def.zalloc = Z_NULL;
-    z_stream_def.zfree = Z_NULL;
-    z_stream_def.opaque = Z_NULL;
-    deflateInit(&z_stream_def, Z_BEST_COMPRESSION);
-    setp(buffer.data(), buffer.data() + buffer.size() - 1);
+    init_z_stream();
   }
 
-  zstream_buffer(std::istream *source, std::size_t buff_sz = 256)
+  explicit zstream_buffer(std::istream *source, std::size_t buff_sz = 256)
       : source_stream(source), is_compressing(false), buffer(buff_sz) {
-    z_stream_def.zalloc = Z_NULL;
-    z_stream_def.zfree = Z_NULL;
-    z_stream_def.opaque = Z_NULL;
-    inflateInit(&z_stream_def);
-    setg(buffer.data(), buffer.data(), buffer.data());
+    init_z_stream();
   }
 
   ~zstream_buffer() override {
@@ -87,6 +77,19 @@ protected:
   int sync() override { return flush_buffer() ? 0 : -1; }
 
 private:
+  void init_z_stream() {
+    z_stream_def.zalloc = Z_NULL;
+    z_stream_def.zfree = Z_NULL;
+    z_stream_def.opaque = Z_NULL;
+    if (is_compressing) {
+      deflateInit(&z_stream_def, Z_BEST_COMPRESSION);
+      setp(buffer.data(), buffer.data() + buffer.size() - 1);
+    } else {
+      inflateInit(&z_stream_def);
+      setg(buffer.data(), buffer.data(), buffer.data());
+    }
+  }
+
   bool flush_buffer() {
     z_stream_def.avail_in = pptr() - pbase();
     z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
@@ -110,8 +113,12 @@ private:
     return true;
   }
 
-  std::ostream *sink_stream;
-  std::istream *source_stream;
+  // only one stream can be assigned anyway, so lets save some memory.
+  union {
+    std::ostream *sink_stream;
+    std::istream *source_stream;
+  };
+
   bool is_compressing;
   std::vector<char> buffer;
   z_stream z_stream_def;
