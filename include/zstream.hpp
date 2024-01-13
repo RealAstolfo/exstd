@@ -43,78 +43,71 @@ public:
 
 protected:
   int_type underflow() override {
-    if (!is_compressing) {
-      if (source_stream->eof() || source_stream->fail()) {
-        std::cerr << "Source stream is not in a good state." << std::endl;
-        return traits_type::eof();
-      }
+    if (is_compressing)
+      return traits_type::eof();
 
-      source_stream->read(buffer.data(), buffer.size());
-      std::streamsize num = source_stream->gcount();
-      if (num <= 0) {
-        std::cerr << "No data read from source stream." << std::endl;
-        return traits_type::eof();
-      }
+    z_stream_def.avail_in = 0;
+    z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
 
-      z_stream_def.avail_in = num;
-      z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
-      z_stream_def.avail_out = buffer.size();
-      z_stream_def.next_out = reinterpret_cast<Bytef *>(buffer.data());
+    source_stream->read(buffer.data(), buffer.size());
+    z_stream_def.avail_in = source_stream->gcount();
 
-      int ret = inflate(&z_stream_def, Z_NO_FLUSH);
-      if (ret != Z_OK && ret != Z_STREAM_END) {
-        std::cerr << "Decompression error: " << ret << std::endl;
-        return traits_type::eof();
-      }
+    if (z_stream_def.avail_in == 0)
+      return traits_type::eof();
 
-      setg(buffer.data(), buffer.data(),
-           buffer.data() + (buffer.size() - z_stream_def.avail_out));
-      return traits_type::to_int_type(*gptr());
+    z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
+
+    std::vector<char> out_buffer(buffer.size());
+    z_stream_def.avail_out = out_buffer.size();
+    z_stream_def.next_out = reinterpret_cast<Bytef *>(out_buffer.data());
+
+    int ret = inflate(&z_stream_def, Z_NO_FLUSH);
+    if (ret != Z_OK && ret != Z_STREAM_END) {
+      std::cerr << "Decompression error: " << ret << std::endl;
+      return traits_type::eof();
     }
 
-    return traits_type::eof();
+    setg(out_buffer.data(), out_buffer.data(),
+         out_buffer.data() + out_buffer.size() - z_stream_def.avail_out);
+    return traits_type::to_int_type(*gptr());
   }
 
   int_type overflow(int_type ch = traits_type::eof()) override {
-    if (is_compressing) {
-      if (ch != traits_type::eof()) {
-        *pptr() = ch;
-        pbump(1);
-      }
+    if (!is_compressing)
+      return traits_type::eof();
 
-      compress_and_write(false);
-      return ch;
+    if (ch != traits_type::eof()) {
+      *pptr() = ch;
+      pbump(1);
     }
 
-    return traits_type::eof();
+    return flush_buffer() ? ch : traits_type::eof();
   }
 
-  int sync() override {
-    if (is_compressing)
-      compress_and_write(true);
-    return 0;
-  }
+  int sync() override { return flush_buffer() ? 0 : -1; }
 
 private:
-  void compress_and_write(bool finish) {
-    char *base = buffer.data();
-    z_stream_def.avail_in = static_cast<uInt>(pptr() - base);
-    z_stream_def.next_in = reinterpret_cast<Byte *>(base);
-    int flush = finish ? Z_FINISH : Z_NO_FLUSH;
-    do {
-      z_stream_def.avail_out = buffer.size();
-      z_stream_def.next_out = reinterpret_cast<Bytef *>(base);
-      int ret = deflate(&z_stream_def, flush);
-      if (ret == Z_STREAM_ERROR) {
-        std::cerr << "ZSTREAM ERROR: " << ret << std::endl;
-      }
+  bool flush_buffer() {
+    z_stream_def.avail_in = pptr() - pbase();
+    z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
 
-      std::size_t have = buffer.size() - z_stream_def.avail_out;
-      if (have > 0)
-        sink_stream->write(base, have);
-    } while (z_stream_def.avail_out == 0);
+    std::vector<char> out_buffer(buffer.size());
+    z_stream_def.avail_out = out_buffer.size();
+    z_stream_def.next_out = reinterpret_cast<Bytef *>(out_buffer.data());
+
+    int ret = deflate(&z_stream_def, Z_SYNC_FLUSH);
+    if (ret != Z_OK) {
+      std::cerr << "ZSTREAM ERROR: " << ret << std::endl;
+      return false;
+    }
+
+    if (out_buffer.size() != z_stream_def.avail_out) {
+      sink_stream->write(out_buffer.data(),
+                         out_buffer.size() - z_stream_def.avail_out);
+    }
 
     setp(buffer.data(), buffer.data() + buffer.size() - 1);
+    return true;
   }
 
   std::ostream *sink_stream;
