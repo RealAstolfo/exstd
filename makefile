@@ -18,5 +18,5 @@ open:
 	qutebrowser file:///home/dots/Documents/Projects/exstd/builds/docs/html/index.html
 
 clean:
-	rm -rf builds/docs/*
-	rm zstream-test
+	-rm -rf builds/docs/*
+	-rm zstream-test
