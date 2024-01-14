@@ -15,12 +15,12 @@
 
 class zstream_buffer : public std::streambuf {
 public:
-  explicit zstream_buffer(std::ostream *sink, std::size_t buff_sz = 256)
+  explicit zstream_buffer(std::ostream *sink, std::size_t buff_sz = 1024)
       : sink_stream(sink), is_compressing(true), buffer(buff_sz) {
     init_z_stream();
   }
 
-  explicit zstream_buffer(std::istream *source, std::size_t buff_sz = 256)
+  explicit zstream_buffer(std::istream *source, std::size_t buff_sz = 1024)
       : source_stream(source), is_compressing(false), buffer(buff_sz) {
     init_z_stream();
   }
@@ -34,48 +34,67 @@ public:
 
 protected:
   int_type underflow() override {
-    if (is_compressing)
+    if (!source_stream || source_stream->eof())
       return traits_type::eof();
-
-    z_stream_def.avail_in = 0;
-    z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
 
     source_stream->read(buffer.data(), buffer.size());
-    z_stream_def.avail_in = source_stream->gcount();
+    std::streamsize read_bytes = source_stream->gcount();
 
-    if (z_stream_def.avail_in == 0)
+    if (read_bytes <= 0)
       return traits_type::eof();
 
+    z_stream_def.avail_in = static_cast<uInt>(read_bytes);
     z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
 
-    std::size_t decompression_start = buffer.size() / 2;
-    z_stream_def.avail_out = decompression_start;
-    z_stream_def.next_out =
-        reinterpret_cast<Bytef *>(buffer.data() + decompression_start);
+    std::vector<char> out_buffer(buffer.size() * 2);
+    z_stream_def.avail_out = static_cast<uInt>(out_buffer.size());
+    z_stream_def.next_out = reinterpret_cast<Bytef *>(out_buffer.data());
 
-    int ret = inflate(&z_stream_def, Z_NO_FLUSH);
-    if (ret != Z_OK && ret != Z_STREAM_END) {
-      std::cerr << "Decompression error: " << ret << std::endl;
-      return traits_type::eof();
+    while (z_stream_def.avail_in > 0) {
+      int ret = inflate(&z_stream_def, Z_NO_FLUSH);
+      if (ret != Z_OK && ret != Z_STREAM_END) {
+        std::cerr << "Decompression failed with error code: " << ret;
+        if (ret == Z_DATA_ERROR) {
+          std::cerr << " (Z_DATA_ERROR, possibly incorrect data or compression "
+                       "method)";
+        } else if (ret == Z_MEM_ERROR) {
+          std::cerr << " (Z_MEM_ERROR, insufficient memory)";
+        }
+        std::cerr << std::endl;
+        return traits_type::eof();
+      }
+
+      if (z_stream_def.avail_out == 0) {
+        // Increase buffer size and continue decompression
+        std::streamsize current_size = out_buffer.size();
+        out_buffer.resize(current_size * 2);
+        z_stream_def.avail_out = static_cast<uInt>(current_size);
+        z_stream_def.next_out =
+            reinterpret_cast<Bytef *>(out_buffer.data() + current_size);
+      }
     }
 
-    setg(buffer.data() + decompression_start,
-         buffer.data() + decompression_start,
-         buffer.data() + decompression_start +
-             (decompression_start - z_stream_def.avail_out));
+    buffer = std::move(out_buffer);
+    setg(buffer.data(), buffer.data(),
+         buffer.data() + (buffer.size() - z_stream_def.avail_out));
+
     return traits_type::to_int_type(*gptr());
   }
 
   int_type overflow(int_type ch = traits_type::eof()) override {
-    if (!is_compressing)
-      return traits_type::eof();
+    // Check if the buffer is full
+    if (pptr() == epptr()) {
+      if (!flush_buffer())
+        return traits_type::eof();
+    }
 
+    // If ch is not EOF, append it to the buffer
     if (ch != traits_type::eof()) {
-      *pptr() = ch;
+      *pptr() = traits_type::to_char_type(ch);
       pbump(1);
     }
 
-    return flush_buffer() ? ch : traits_type::eof();
+    return ch;
   }
 
   int sync() override { return flush_buffer() ? 0 : -1; }
@@ -96,25 +115,33 @@ private:
   }
 
   bool flush_buffer() {
-    z_stream_def.avail_in = pptr() - pbase();
+    // Prepare the input for compression
+    z_stream_def.avail_in = static_cast<uInt>(pptr() - pbase());
     z_stream_def.next_in = reinterpret_cast<Bytef *>(buffer.data());
 
-    std::vector<char> out_buffer(buffer.size());
-    z_stream_def.avail_out = out_buffer.size();
-    z_stream_def.next_out = reinterpret_cast<Bytef *>(out_buffer.data());
+    // Dynamically resize the output buffer if necessary
+    std::vector<char> out_buffer(buffer.size() * 2); // Increase the buffer size
 
-    int ret = deflate(&z_stream_def, Z_SYNC_FLUSH);
-    if (ret != Z_OK) {
-      std::cerr << "ZSTREAM ERROR: " << ret << std::endl;
-      return false;
-    }
+    do {
+      z_stream_def.avail_out = static_cast<uInt>(out_buffer.size());
+      z_stream_def.next_out = reinterpret_cast<Bytef *>(out_buffer.data());
 
-    if (out_buffer.size() != z_stream_def.avail_out) {
-      sink_stream->write(out_buffer.data(),
-                         out_buffer.size() - z_stream_def.avail_out);
-    }
+      // Compress the data
+      int ret = deflate(&z_stream_def, Z_SYNC_FLUSH);
+      if (ret != Z_OK) {
+        return false; // Handle compression error
+      }
+    } while (z_stream_def.avail_out ==
+             0); // Repeat if output buffer was too small
 
+    // Write compressed data to sink stream
+    std::streamsize write_size = out_buffer.size() - z_stream_def.avail_out;
+    sink_stream->write(out_buffer.data(), write_size);
+
+    // Reset the buffer pointers
     setp(buffer.data(), buffer.data() + buffer.size() - 1);
+    pbump(0);
+
     return true;
   }
 
