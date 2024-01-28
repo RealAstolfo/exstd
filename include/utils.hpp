@@ -51,6 +51,8 @@ std::vector<T *> get_slice(std::list<T> &l, size_t start, size_t end) {
 template <typename T>
 auto error(const T &estimated, const T &actual)
     -> decltype(estimated - actual) {
+  if (actual == T(0))
+    return estimated;
   const auto diff = estimated - actual;
   return std::abs(diff / actual);
 }
