@@ -1,0 +1,3 @@
+[submodule "vendors/bitsery"]
+	path = vendors/bitsery
+	url = https://github.com/fraillt/bitsery.git
