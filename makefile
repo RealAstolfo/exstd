@@ -1,8 +1,10 @@
-CXX = g++
+CXX = zig c++
 INC = -I./include
 LIB = -L/lib -lz
 
-CFLAGS = -march=native -O3 -g -Wall -Wextra -pedantic $(INC)
+ZTARGET = -target native
+
+CFLAGS = ${ZTARGET} -march=native -O3 -g -Wall -Wextra -pedantic $(INC)
 CXXFLAGS = -std=c++20 $(CFLAGS)
 LDFLAGS = $(LIB) -O3
 
