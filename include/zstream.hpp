@@ -166,6 +166,8 @@ public:
     init(&buffer);
   }
 
+  ~zstream() { flush(); }
+
   void flush() { buffer.pubsync(); }
 
 private:

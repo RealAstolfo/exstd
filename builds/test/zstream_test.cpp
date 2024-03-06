@@ -21,7 +21,6 @@ int main(int argc, char **argv) {
     compressor << "Hello World!\n";
     compressor << "Hello World!\n";
     compressor << "Hello World!\n";
-    compressor.flush();
   }
 
   std::string com_data = com_data_stream.str();
