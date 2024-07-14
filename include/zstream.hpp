@@ -1,6 +1,11 @@
 #ifndef EXSTD_ZSTREAM
 #define EXSTD_ZSTREAM
 
+/**
+ * @file zstream.hpp
+ * @brief Header file for zlib-based stream buffer.
+ */
+
 #include <cstddef>
 #include <cstring>
 #include <iostream>
@@ -13,18 +18,34 @@
 #include <zconf.h>
 #include <zlib.h>
 
+/**
+ * @brief A stream buffer for zlib compression and decompression.
+ */
 class zstream_buffer : public std::streambuf {
 public:
+  /**
+   * @brief Constructor for compressing streams.
+   * @param sink The output stream to write compressed data to.
+   * @param buff_sz The size of the buffer to use.
+   */
   explicit zstream_buffer(std::ostream *sink, std::size_t buff_sz = 1024)
       : sink_stream(sink), is_compressing(true), buffer(buff_sz) {
     init_z_stream();
   }
 
+  /**
+   * @brief Constructor for decompressing streams.
+   * @param source The input stream to read compressed data from.
+   * @param buff_sz The size of the buffer to use.
+   */
   explicit zstream_buffer(std::istream *source, std::size_t buff_sz = 1024)
       : source_stream(source), is_compressing(false), buffer(buff_sz) {
     init_z_stream();
   }
 
+  /**
+   * @brief Destructor. Cleans up the zlib stream.
+   */
   ~zstream_buffer() override {
     if (is_compressing)
       deflateEnd(&z_stream_def);
@@ -33,6 +54,10 @@ public:
   }
 
 protected:
+  /**
+   * @brief Handles input buffer underflow for decompression.
+   * @return The next available character from the decompressed stream.
+   */
   int_type underflow() override {
     if (!source_stream || source_stream->eof())
       return traits_type::eof();
@@ -81,6 +106,11 @@ protected:
     return traits_type::to_int_type(*gptr());
   }
 
+  /**
+   * @brief Handles output buffer overflow for compression.
+   * @param ch The character to write.
+   * @return The written character, or EOF on failure.
+   */
   int_type overflow(int_type ch = traits_type::eof()) override {
     // Check if the buffer is full
     if (pptr() == epptr()) {
@@ -97,9 +127,16 @@ protected:
     return ch;
   }
 
+  /**
+   * @brief Synchronizes the buffer by flushing it.
+   * @return 0 on success, -1 on failure.
+   */
   int sync() override { return flush_buffer() ? 0 : -1; }
 
 private:
+  /**
+   * @brief Initializes the zlib stream.
+   */
   void init_z_stream() {
     memset(&z_stream_def, 0, sizeof(z_stream));
     z_stream_def.zalloc = Z_NULL;
@@ -114,6 +151,11 @@ private:
     }
   }
 
+  /**
+   * @brief Flushes the buffer, compressing its contents and writing to the
+   * output stream.
+   * @return True on success, false on failure.
+   */
   bool flush_buffer() {
     // Prepare the input for compression
     z_stream_def.avail_in = static_cast<uInt>(pptr() - pbase());
@@ -151,27 +193,45 @@ private:
     std::istream *source_stream;
   };
 
-  bool is_compressing;
-  std::vector<char> buffer;
-  z_stream z_stream_def;
+  bool is_compressing; ///< Flag indicating whether the buffer is compressing or
+                       ///< decompressing.
+  std::vector<char> buffer; ///< The buffer for holding data.
+  z_stream z_stream_def;    ///< The zlib stream structure.
 };
 
+/**
+ * @brief A stream class for handling zlib-compressed streams.
+ */
 class zstream : public std::iostream {
 public:
+  /**
+   * @brief Constructor for compressing streams.
+   * @param sink The output stream to write compressed data to.
+   */
   zstream(std::ostream *sink) : std::iostream(&buffer), buffer(sink) {
     init(&buffer);
   }
 
+  /**
+   * @brief Constructor for decompressing streams.
+   * @param source The input stream to read compressed data from.
+   */
   zstream(std::istream *source) : std::iostream(&buffer), buffer(source) {
     init(&buffer);
   }
 
+  /**
+   * @brief Destructor. Flushes the buffer.
+   */
   ~zstream() { flush(); }
 
+  /**
+   * @brief Flushes the buffer.
+   */
   void flush() { buffer.pubsync(); }
 
 private:
-  zstream_buffer buffer;
+  zstream_buffer buffer; ///< The zlib stream buffer.
 };
 
-#endif
+#endif // EXSTD_ZSTREAM
