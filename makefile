@@ -17,7 +17,7 @@ zstream-test:
 	${CXX} ${CXXFLAGS} ${LIB} builds/test/zstream_test.cpp -o $@
 
 open:
-	qutebrowser file:///home/dots/Documents/Projects/exstd/builds/docs/html/index.html
+	firefox file:///home/dots/Documents/Projects/exstd/builds/docs/html/index.html
 
 clean:
 	-rm -rf builds/docs/*
