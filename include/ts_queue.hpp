@@ -63,11 +63,10 @@ template <typename T> struct ts_queue {
 };
 
 template <typename T> void ts_queue<T>::push(const T &value) {
-  {
-    std::unique_lock<std::mutex> lock(access_mutex);
-    internal.push(value);
-  }
+  std::unique_lock<std::mutex> lock(access_mutex);
+  internal.push(value);
   cond.notify_one();
+  // lock released by RAII after notify
 }
 
 template <typename T> std::optional<T> ts_queue<T>::pop() {
